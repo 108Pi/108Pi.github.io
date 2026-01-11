@@ -16,15 +16,75 @@
 	<script type="text/javascript">
 		window.addEventListener('load', function (evt) {
 			try {
-				RomPatcherWeb.initialize({
-					language: 'en', //default: en
-					requireValidation: false
-				}, {
-					file: './my_patch.zip', //zip containing patches
-					name: 'Game (English v1.0)',
-					description: 'English fan translation for Game',
-					outputName: 'Game (English v1.0)', //patched ROM name
-				});
+	RomPatcherWeb.initialize(
+		{
+			onloadrom: function (romFile) {
+				const NES_HEADER_SIZE=16;
+                const FDS_HEADER_SIZE=55;
+				if (romFile.getExtension()==='nes' && (romFile.fileSize - NES_HEADER_SIZE) > 0){
+                //console.log(romFile);
+                    console.log(romFile.hashCRC32().toString(16));
+                    romFile.seek(0);
+	                var newFile = romFile.slice(16);
+	                romFile.fileSize = newFile.fileSize;
+	                romFile._u8array = newFile._u8array;
+                    const crc32 = romFile.hashCRC32();
+                    if (crc32===0xd445f698) {
+                        RomPatcherWeb.pickEmbededFile('smb1-headerless.bps');
+                    } else if (crc32===0x9a2db086) {
+                        RomPatcherWeb.pickEmbededFile('smb1-pal-headerless.bps');
+                    } else {RomPatcherWeb.setErrorMessage('Invalid NES rom');}
+				} else if (romFile.getExtension()==='fds' && (romFile.fileSize - FDS_HEADER_SIZE) > 0) {
+                    romFile.seek(0);
+	                var newFile = romFile.slice(0x37);
+	                romFile.fileSize = newFile.fileSize;
+	                romFile._u8array = newFile._u8array;
+                    var crc32 = romFile.hashCRC32();
+                    if (crc32===0xf9a7b1be) {
+                        RomPatcherWeb.pickEmbededFile('annsmb-headerless.bps');
+                    } else {
+                        romFile.seek(0x2167);
+                        for (var i = 0; i < 9; i++) {
+                            romFile.writeU8(0xFF);
+                        }
+                        crc32 = romFile.hashCRC32();
+                        if (crc32===0x08167408) {
+                            RomPatcherWeb.pickEmbededFile('smb2-headerless.bps');
+                        }
+                    }
+                }
+                console.log(romFile.hashCRC32().toString(16));
+			}
+		}, {
+			file: 'patches.zip',
+			patches: [
+				{
+					file: 'smb1-headerless.bps',
+					outputName: 'smb1',
+					outputExtension: 'nes',
+                    optional: false
+				},
+				{
+					file: 'smb1-pal-headerless.bps',
+					outputName: 'smb1 pal',
+					outputExtension: 'nes',
+                    optional: false
+				},
+				{
+					file: 'annsmb-headerless.bps',
+					outputName: 'ann',
+					outputExtension: 'fds',
+                    optional: false
+				},
+				{
+					file: 'smb2-headerless.bps',
+					outputName: 'smb2',
+					outputExtension: 'fds',
+                    optional: false
+				}
+			]
+		}
+	);
 			} catch (err) {
 				var message = err.message;
 				if (/incompatible browser/i.test(message) || /variable RomPatcherWeb/i.test(message))
